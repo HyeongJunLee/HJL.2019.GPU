@@ -68,6 +68,7 @@ cbind(df.nvd, res.roc.nvd$roc_local)[!is.na(res.roc.nvd$roc_local),]
 
 # Bind DMUs & eff at 2018
 df.nvd <- cbind(df.nvd, Eff.2018 = res.roc.nvd$eff_t)
+df.nvd <- cbind(df.nvd, Eff = res.roc.nvd$eff_r)
 
 #####################################################################################
 ### Analysis - AMD
@@ -87,6 +88,7 @@ cbind(df.amd, res.roc.amd$roc_local)[!is.na(res.roc.amd$roc_local),]
 
 # Bind DMUs & eff at 2018
 df.amd <- cbind(df.amd, Eff.2018 = res.roc.amd$eff_t)
+df.amd <- cbind(df.amd, Eff = res.roc.amd$eff_r)
 
 #####################################################################################
 ### I/O Regression
@@ -97,8 +99,8 @@ df.amd <- cbind(df.amd, Eff.2018 = res.roc.amd$eff_t)
 id.nvd <- c(1, 54, 60, 131, 146, 188, 221, 254, 281, 334)
 id.amd <- c(33, 50, 110, 141, 187, 242, 265, 283, 309)
 
-df.reg.nvd <- df.raw[id.nvd, ]
-df.reg.amd <- df.raw[id.amd, ]
+df.reg.nvd <- df.nvd[which(df.nvd$DMU %in% id.nvd), ]
+df.reg.amd <- df.amd[which(df.amd$DMU %in% id.amd), ]
 
 month.pred.nvd <- 167
 month.pred.amd <- 150
@@ -110,8 +112,10 @@ summary(model.TDP.nvd)
 
 pred.TDP.nvd_temp <- predict(model.TDP.nvd, data.frame(month = month.pred.nvd), level = 0.9, interval = "confidence")
 rownames(pred.TDP.nvd_temp) <- c("TDP")
-pred.TDP.nvd <- data.frame(month = rep(month.pred.nvd, 3), 
-                           t(pred.TDP.nvd_temp))
+pred.TDP.nvd <- data.frame(t(pred.TDP.nvd_temp),
+                           TDP.Change = c((pred.TDP.nvd_temp[1] / df.reg.nvd[10, 4] - 1) * 100, (pred.TDP.nvd_temp[2] / df.reg.nvd[10, 4] - 1) * 100, (pred.TDP.nvd_temp[3] / df.reg.nvd[10, 4] - 1) * 100),
+                           month = rep(month.pred.nvd, 3), 
+                           Forecasting.date = rep(month.pred.nvd%/%12+2007+(month.pred.nvd%%12-2)/100, 3))
 
 pred.TDP.nvd
 
@@ -128,8 +132,10 @@ summary(model.TDP.amd)
 
 pred.TDP.amd_temp <- predict(model.TDP.amd, data.frame(month = month.pred.amd), level = 0.9, interval = "confidence")
 rownames(pred.TDP.amd_temp) <- c("TDP")
-pred.TDP.amd <- data.frame(month = rep(month.pred.amd, 3), 
-                           t(pred.TDP.amd_temp))
+pred.TDP.amd <- data.frame(t(pred.TDP.amd_temp),
+                           TDP.Change = c((pred.TDP.amd_temp[1] / df.reg.amd[9, 4] - 1) * 100, (pred.TDP.amd_temp[2] / df.reg.amd[9, 4] - 1) * 100, (pred.TDP.amd_temp[3] / df.reg.amd[9, 4] - 1) * 100),
+                           month = rep(month.pred.amd, 3),
+                           Forecasting.date = rep(month.pred.amd%/%12+2007+(month.pred.amd%%12-2)/100, 3))
 
 pred.TDP.amd
 
@@ -195,9 +201,9 @@ target.table(df.nvd[which(df.nvd$Name == "RTX 2080"), ], target.nvd.fit)
 target.table(df.amd[which(df.amd$Name == "Radeon RX 580")[1], ], target.amd.fit)
 
 # Grid search
-weight.grid <- data.frame(FPP = rep(seq(1e-1, 1, by = 1e-1), each = 1e+2), 
+weight.grid <- data.frame(FPP = rep(seq(1e-3, 1e-2, by = 1e-3), each = 1e+2), 
                           TR  = rep(seq(1e-1, 1, by = 1e-1), each = 1e+1, times = 1e+1), 
-                          PR  = rep(seq(1e-1, 1, by = 1e-1), times = 1e+2))
+                          PR  = rep(seq(1001, 1010, by = 1), times = 1e+2))
 
 res.grid    <- data.frame(t(apply(weight.grid, 1, 
                                   function(x){target.spec.dea(data.frame(df.amd[, id.x]), data.frame(df.amd[, id.y]), data.frame(df.amd[, id.t]), 
@@ -220,8 +226,8 @@ for (i in 1 : length(t(weight.grid.non[1]))){
 
 res.grid.view <- res.grid[which(round(res.grid$X1, 2) != round(res.grid$X1[1], 2)),]
 
-plot(weight.grid.view[2:3], pch=25, xlim = c(0, 10), ylim = c(0, 10)) 
-points(weight.grid.non[2:3], pch=1, xlim = c(0, 10), ylim = c(0, 10), col="red")
+plot(weight.grid.view[2:3], pch=25, xlim = c(100, 1000), ylim = c(100, 1000)) 
+points(weight.grid.non[2:3], pch=1, xlim = c(100, 1000), ylim = c(100, 1000), col="red")
 
 # RTX 2080
 table.nvd <- data.frame()
